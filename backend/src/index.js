@@ -9,29 +9,69 @@ const app = express();
 const PORT = 3100;
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_NAME;
-let db;
 
 app.use(cors());
 app.use(express.json());
 
-const initMongodb = async () => {
-  if (!uri) {
-    console.error("No MONGODB_URI in .env file");
+async function getCollectionWithValidation(collectionName) {
+  if (!collectionName) {
+    console.error("Accessing collections without collection name");
     return;
   }
-  const client = new MongoClient(uri);
+  const mongoClient = new MongoClient(uri);
   try {
-    await client.connect();
-    console.log("Connected to MongoDB");
-    db = client.db(process.env.MONGODB_NAME);
-  } catch (error) {
-    console.error("Failed to connect to MongoDB", error);
-  }
-};
+    await mongoClient.connect();
+    const db = mongoClient.db(dbName);
+    const tasksSchema = {
+      validator: {
+        $jsonSchema: {
+          bsonType: "object",
+          required: ["name", "status", "start-date", "due-date"],
+          properties: {
+            name: {
+              bsonType: "string",
+              minLength: 1,
+              maxLength: 64,
+              description: "required, must be a string",
+            },
+            status: {
+              bsonType: "bool",
+              description: "required, must be a boolean",
+            },
+            "start-date": {
+              bsonType: "date",
+              description: "required, must be a date, assigned automatically",
+            },
+            "due-date": {
+              bsonType: "date",
+              description:
+                "required, must be the same day as start-date or later",
+            },
+            "done-date": {
+              bsonType: "date",
+              description: "required, must be a date, assigned automatically",
+            },
+          },
+        },
+      },
+    };
 
-app.get("/api/task", async (req, res) => {
+    const collections = await db
+      .listCollections({ name: collectionName })
+      .toArray();
+    if (collections.length === 0) {
+      await db.createCollection(collectionName, tasksSchema);
+    }
+    return db.collection(collectionName);
+  } catch (error) {
+    console.error("Error setting up schema validation:", error);
+    throw error;
+  }
+}
+
+app.get("/api/tasks", async (req, res) => {
   try {
-    const collection = db.collection("tasks");
+    const collection = await getCollectionWithValidation("tasks");
     const tasks = await collection.find().toArray();
     res.json({ message: "ok", tasks });
   } catch (error) {
@@ -41,11 +81,37 @@ app.get("/api/task", async (req, res) => {
 });
 
 app.post("/api/task", async (req, res) => {
-  const data = req.body;
+  const {
+    name = null,
+    status = false,
+    "start-date": startDate = new Date(new Date().setHours(0, 0, 0, 0)),
+    "due-date": dueDate = null,
+  } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: "Missing task name" });
+  }
+  if (!dueDate) {
+    return res.status(400).json({ error: "Missing Due Date" });
+  }
+  if (isNaN(new Date(dueDate).getTime())) {
+    return res.status(400).json({
+      error: "Invalid date format for due-date.",
+    });
+  }
+  if (new Date(dueDate).getTime() < new Date(startDate).getTime()) {
+    return res
+      .status(400)
+      .json({ error: "Due Date can't be less than Start Date" });
+  }
   try {
-    const collection = db.collection("tasks");
-    const result = await collection.insertOne({ task: data.task });
-    res.json({ message: "ok", result });
+    const collection = await getCollectionWithValidation("tasks");
+    const result = await collection.insertOne({
+      name,
+      status,
+      "start-date": startDate,
+      "due-date": new Date(new Date(dueDate).setHours(0, 0, 0, 0)),
+    });
+    res.status(201).json(result);
   } catch (error) {
     console.error("Error adding tasks", error);
     res.status(500).json({ error: "Failed to add a tasks" });
@@ -53,6 +119,5 @@ app.post("/api/task", async (req, res) => {
 });
 
 app.listen(PORT, async () => {
-  await initMongodb();
   console.log(`Backend is running on http://localhost:${PORT}`);
 });
