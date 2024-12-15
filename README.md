@@ -21,7 +21,9 @@ Supported API endpoints:
   - All matches of a substring
   - One task by its ID
 
-Endpoints include error prevention and data validation.
+Tasks endpoints include error prevention and data validation.
+
+No endpoints for projects management created.
 
 # Run the project
 
