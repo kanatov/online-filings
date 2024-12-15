@@ -1,10 +1,11 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ObjectId } = require("mongodb");
+const { ObjectId } = require("mongodb");
 require("dotenv").config({
   path: require("path").resolve(__dirname, "../../.env.local"),
 });
 const { initCollection } = require("./initCollection");
+const { info } = require("console");
 
 const app = express();
 const PORT = 3100;
@@ -14,14 +15,67 @@ const dbName = process.env.MONGODB_NAME;
 app.use(cors());
 app.use(express.json());
 
-// Get All Tasks
+// Get all tasks
 app.get("/api/tasks", async (req, res) => {
+  const { name, status, sort } = req.body;
+
+  // Validate request
+  if (name && name.length > 64) {
+    return res.status(400).json({ error: "Name is more than 64 character" });
+  }
+  if (
+    sort &&
+    sort !== "due-date" &&
+    sort !== "start-date" &&
+    sort !== "done-date"
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Sort field is not defined in schema" });
+  }
   try {
+    // Forming request
+    const searchQuery = {};
+    const sortQuery = {};
+    if (status !== undefined) {
+      searchQuery.status = status;
+    }
+    if (name) {
+      searchQuery.name = { $regex: name, $options: "i" };
+    }
+    if (sort) {
+      sortQuery[sort] = 1;
+      searchQuery[sort] = { $exists: true };
+    }
+
+    // Initiate connection
     const collection = await initCollection({ uri, dbName });
-    const tasks = await collection.find().toArray();
+
+    // Fetch data
+    const tasks = await collection.find(searchQuery).sort(sortQuery).toArray();
     res.json({ message: "ok", result: tasks });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch tasks" });
+    res.status(500).json({ "Failed to fetch tasks:": error });
+  }
+});
+
+// Get a tasks by ID
+app.get("/api/task/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Initiate connection
+    const collection = await initCollection({ uri, dbName });
+
+    // Fetch data
+    const task = await collection.findOne({ _id: new ObjectId(id) });
+
+    // Validating response
+    if (task.matchedCount === 0) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+    res.json({ message: "ok", result: task });
+  } catch (error) {
+    res.status(500).json({ "Failed to fetch tasks": error });
   }
 });
 
@@ -33,6 +87,8 @@ app.post("/api/task", async (req, res) => {
     "start-date": startDate = new Date(new Date().setHours(0, 0, 0, 0)),
     "due-date": dueDate = null,
   } = req.body;
+
+  // Validate request
   if (!name) {
     return res.status(400).json({ error: "Missing task name" });
   }
@@ -53,17 +109,19 @@ app.post("/api/task", async (req, res) => {
       .json({ error: "Due Date can't be less than Start Date" });
   }
   try {
+    // Initiate connection
     const collection = await initCollection({ uri, dbName });
+
+    // Insert data
     const result = await collection.insertOne({
       name,
       status,
       "start-date": startDate,
       "due-date": new Date(new Date(dueDate).setHours(0, 0, 0, 0)),
-      "done-date": null,
     });
     res.status(201).json({ message: "ok", result });
   } catch (error) {
-    res.status(500).json({ error: "Failed to add a tasks" });
+    res.status(500).json({ "Failed to add a tasks": error });
   }
 });
 
@@ -71,16 +129,21 @@ app.post("/api/task", async (req, res) => {
 app.delete("/api/task/:id", async (req, res) => {
   const { id } = req.params;
   try {
+    // Initiate connection
     const collection = await initCollection({ uri, dbName });
+
+    // Delete data
     const result = await collection.deleteOne({
       _id: new ObjectId(id),
     });
+
+    // Validating response
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: "Task not found" });
     }
     res.json({ message: "ok", result });
   } catch (error) {
-    res.status(500).json({ error: "Failed to delete task" });
+    res.status(500).json({ "Failed to delete task": error });
   }
 });
 
@@ -88,6 +151,8 @@ app.delete("/api/task/:id", async (req, res) => {
 app.patch("/api/task/:id", async (req, res) => {
   const { id } = req.params;
   const { name, status, "due-date": dueDate } = req.body;
+
+  // Validate request
   if (!name && status === undefined && !dueDate) {
     return res.status(400).json({ error: "No data to update the task" });
   }
@@ -107,8 +172,13 @@ app.patch("/api/task/:id", async (req, res) => {
 
   let task;
   try {
+    // Initiate connection
     const collection = await initCollection({ uri, dbName });
+
+    // Fetch data
     task = await collection.findOne({ _id: new ObjectId(id) });
+
+    // Validating response
     if (task.matchedCount === 0) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -117,6 +187,8 @@ app.patch("/api/task/:id", async (req, res) => {
         .status(400)
         .json({ error: "Due Date can't be less than Start Date" });
     }
+
+    // Forming request
     const setFields = {};
     const unsetFields = {};
     if (name) setFields.name = name;
@@ -129,10 +201,13 @@ app.patch("/api/task/:id", async (req, res) => {
     if (dueDate)
       setFields["due-date"] = new Date(new Date(dueDate).setHours(0, 0, 0, 0));
 
+    // Update data
     const result = await collection.updateOne(
       { _id: new ObjectId(id) },
       { $set: setFields, $unset: unsetFields }
     );
+
+    // Validating response
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Task not found" });
     }
@@ -148,14 +223,21 @@ app.patch("/api/complete/:id", async (req, res) => {
   const { id } = req.params;
   let task;
   try {
+    // Initiate connection
     const collection = await initCollection({ uri, dbName });
+
+    // Fetch data
     task = await collection.findOne({ _id: new ObjectId(id) });
+
+    // Validating response
     if (task.matchedCount === 0) {
       return res.status(404).json({ error: "Task not found" });
     }
     if (task.status === true) {
       return res.status(400).json({ error: "Task already completed" });
     }
+
+    // Update data
     const result = await collection.updateOne(
       { _id: new ObjectId(id) },
       {

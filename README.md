@@ -18,7 +18,8 @@ Supported API endpoints:
   - All sorted by Start date (old first)
   - All sorted by Due date (end soon first)
   - All sorted by Complete date (old first)
-  - First match with a substring
+  - All matches of a substring
+  - One task by its ID
 
 Endpoints include error prevention and data validation.
 
@@ -74,10 +75,18 @@ Besides the document ID each task consist of:
 
 # Access API
 
-### Get all tasks
+### Get all tasks and filter
 
 ```
 GET http://localhost:3100/api/tasks
+
+// Filter request (not required)
+
+{
+    "name": "substring",
+    "status": boolean,
+    "sort": "due-date" | "start-date" | "done-date"
+}
 
 // Response
 {
@@ -115,7 +124,7 @@ POST http://localhost:3100/api/task
 }
 ```
 
-### Post a task
+### Delete a task
 
 ```
 DELETE http://localhost:3100/api/task/{id}
