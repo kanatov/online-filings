@@ -1,11 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { ObjectId } = require("mongodb");
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../../.env.local"),
-});
 const { initCollection } = require("./initCollection");
-const { info } = require("console");
 
 const app = express();
 const PORT = 3100;
