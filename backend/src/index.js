@@ -9,8 +9,8 @@ const { info } = require("console");
 
 const app = express();
 const PORT = 3100;
-const uri = process.env.MONGODB_URI;
-const dbName = process.env.MONGODB_NAME;
+const uri = "mongodb://127.0.0.1:27017/";
+const dbName = "todoList";
 
 app.use(cors());
 app.use(express.json());

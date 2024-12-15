@@ -25,16 +25,7 @@ Endpoints include error prevention and data validation.
 
 # Run the project
 
-## Create env file
-
-Create `.env.local` file in the root folder with the next values:
-
-```
-MONGODB_URI=mongodb://127.0.0.1:27017/
-MONGODB_NAME=todoList
-```
-
-## Run the project from the root dirrectory
+Run the project from the root dirrectory
 
 ### Install All Dependencies:
 
