@@ -1,10 +1,13 @@
 const { MongoClient } = require("mongodb");
 
 async function initCollection({ uri, dbName }) {
+  // Initiate Mongo client
   const mongoClient = new MongoClient(uri);
   try {
     await mongoClient.connect();
     const db = mongoClient.db(dbName);
+
+    // Define schema validation
     const tasksSchema = {
       validator: {
         $jsonSchema: {
@@ -39,12 +42,16 @@ async function initCollection({ uri, dbName }) {
       },
     };
     const collectionName = "tasks";
+
+    // Create collection if doesn't exist
     const collections = await db
       .listCollections({ name: collectionName })
       .toArray();
     if (collections.length === 0) {
       await db.createCollection(collectionName, tasksSchema);
     }
+
+    // Return validated collection
     return db.collection(collectionName);
   } catch (error) {
     console.error("Error setting up schema validation:", error);
