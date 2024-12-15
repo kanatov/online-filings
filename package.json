@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "install": "npm-run-all install:frontend install:backend",
+    "install": "npm-run-all install:frontend install:backend build",
     "install:frontend": "cd frontend && npm install",
     "install:backend": "cd backend && npm install",
     "dev": "concurrently \"npm:dev:frontend\" \"npm:dev:backend\"",
